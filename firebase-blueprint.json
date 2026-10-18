@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with personal medical info, emergency contacts, or responder credentials.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["citizen", "dispatcher", "responder"] },
+        "phone": { "type": "string", "maxLength": 30 },
+        "bloodType": { "type": "string", "maxLength": 20 },
+        "birthdate": { "type": "string", "maxLength": 30 },
+        "heightCm": { "type": "number" },
+        "weightKg": { "type": "number" },
+        "city": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 300 },
+        "allergies": { "type": "array" },
+        "emergencyContact": { "type": "object" },
+        "emergencyCircle": { "type": "array" },
+        "agency": { "type": "string", "maxLength": 100 },
+        "badgeNumber": { "type": "string", "maxLength": 50 },
+        "responderRole": { "type": "string", "maxLength": 100 },
+        "station": { "type": "string", "maxLength": 120 },
+        "vehicleUnit": { "type": "string", "maxLength": 50 },
+        "callSign": { "type": "string", "maxLength": 50 },
+        "avatarUrl": { "type": "string", "maxLength": 1000000 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Emergency CAD incident report and live dispatch status.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 30 },
+        "type": { "type": "string", "maxLength": 120 },
+        "priority": { "type": "string", "enum": ["critical", "urgent", "standard"] },
+        "location": { "type": "string", "maxLength": 300 },
+        "reportedTime": { "type": "string", "maxLength": 30 },
+        "patientName": { "type": "string", "maxLength": 100 },
+        "recommendedUnit": { "type": "string", "maxLength": 100 },
+        "service": { "type": "string", "enum": ["ambulance", "police", "fire"] },
+        "targetResponderId": { "type": "string", "maxLength": 100 },
+        "acceptedUnit": { "type": "string", "maxLength": 100 },
+        "declinedBy": { "type": "array" },
+        "distanceKm": { "type": "number" },
+        "etaMins": { "type": "number" },
+        "routeAlgorithm": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["pending", "dispatched", "en_route", "on_scene", "cancelled", "completed"] },
+        "coords": { "type": "array" },
+        "details": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["code", "type", "priority", "location", "status"]
+    },
+    "Responder": {
+      "title": "Responder",
+      "description": "Live status, location, apparatus, and presence of emergency field responder units.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "callSign": { "type": "string", "maxLength": 100 },
+        "apparatus": { "type": "string", "enum": ["ambulance", "police", "fire"] },
+        "status": { "type": "string", "enum": ["waiting", "en_route", "on_scene", "transporting", "offline", "incoming"] },
+        "coords": { "type": "array" },
+        "accuracy": { "type": "number" },
+        "phone": { "type": "string", "maxLength": 30 },
+        "lastSeen": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "callSign", "apparatus", "status"]
+    },
+    "DirectChat": {
+      "title": "DirectChat",
+      "description": "Two-way messenger conversation between a citizen and responder or dispatch.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "citizenId": { "type": "string", "maxLength": 128 },
+        "citizenName": { "type": "string", "maxLength": 100 },
+        "responderId": { "type": "string", "maxLength": 128 },
+        "responderName": { "type": "string", "maxLength": 100 },
+        "responderApparatus": { "type": "string", "maxLength": 50 },
+        "lastMessage": { "type": "string", "maxLength": 1000 },
+        "lastMessageSender": { "type": "string", "maxLength": 100 },
+        "lastMessageTime": { "type": "string", "maxLength": 30 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "citizenId", "responderId"]
+    },
+    "DirectChatMessage": {
+      "title": "DirectChatMessage",
+      "description": "Individual message inside a direct chat conversation thread.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "chatId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 100 },
+        "senderRole": { "type": "string", "enum": ["citizen", "responder", "dispatch"] },
+        "text": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "chatId", "senderId", "senderName", "text"]
+    },
+    "SafetyBroadcast": {
+      "title": "SafetyBroadcast",
+      "description": "Safety check-in broadcast sent to emergency contacts.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "callerName": { "type": "string", "maxLength": 100 },
+        "recipientsNotified": { "type": "number" },
+        "status": { "type": "string", "maxLength": 50 },
+        "createdAtIso": { "type": "string", "maxLength": 50 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["callerName", "status"]
+    },
+    "AllergyCatalogItem": {
+      "title": "AllergyCatalogItem",
+      "description": "Catalog item for allergen selection.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents keyed by Firebase Auth UID."
+    },
+    "/incidents/{incidentId}": {
+      "schema": "Incident",
+      "description": "CAD incident entries created during emergency alerts or SOS dispatches."
+    },
+    "/responders/{responderId}": {
+      "schema": "Responder",
+      "description": "Real-time presence and GPS telemetry for active emergency responders."
+    },
+    "/direct_chats/{chatId}": {
+      "schema": "DirectChat",
+      "description": "Conversations between citizens and responders in Messenger style."
+    },
+    "/direct_chats/{chatId}/messages/{messageId}": {
+      "schema": "DirectChatMessage",
+      "description": "Messages sent inside a direct chat."
+    },
+    "/safetyBroadcasts/{broadcastId}": {
+      "schema": "SafetyBroadcast",
+      "description": "Safety broadcast records log."
+    },
+    "/allergies_catalog/{allergyId}": {
+      "schema": "AllergyCatalogItem",
+      "description": "Catalog of common allergens for medical profile tagging."
+    }
+  }
+}

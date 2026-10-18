@@ -1,0 +1,10 @@
+{
+  "name": "SERDS",
+  "description": "Smart Emergency Response Dispatch - Mobile First WebApp UI",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

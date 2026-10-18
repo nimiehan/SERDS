@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="serdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C52250"/>
+      <stop offset="100%" stop-color="#9A143A"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#550A1F" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background Shield Container -->
+  <rect width="512" height="512" rx="112" fill="url(#serdGrad)"/>
+
+  <!-- Emergency Response Shield / Symbol -->
+  <g filter="url(#shadow)">
+    <!-- Shield Outline -->
+    <path d="M 256 96 C 330 96 384 120 384 120 C 384 250 340 350 256 416 C 172 350 128 250 128 120 C 128 120 182 96 256 96 Z"
+          fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linejoin="round"/>
+    
+    <!-- White Emergency Cross inside shield -->
+    <rect x="228" y="172" width="56" height="152" rx="16" fill="#FFFFFF"/>
+    <rect x="180" y="220" width="152" height="56" rx="16" fill="#FFFFFF"/>
+
+    <!-- Pulse / Heartbeat accent line -->
+    <path d="M 200 354 L 230 354 L 244 334 L 268 374 L 282 354 L 312 354"
+          fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
