@@ -8,6 +8,7 @@ import {
   updateFirestoreIncidentStatus,
   declineFirestoreIncident
 } from './firebase';
+import { getRuleBasedEmergencyTriage } from './triageEngine';
 
 const STORAGE_API_KEY = 'serd_api_base_url';
 
@@ -352,7 +353,7 @@ export interface ChatTriageResponse {
 }
 
 /**
- * Send messages to real server-side Gemini AI for emergency triage
+ * Send messages to server-side Gemini AI for emergency triage with automatic fallback
  */
 export async function sendChatToGemini(
   messages: ChatTriageMessage[],
@@ -383,22 +384,21 @@ export async function sendChatToGemini(
         guidance: json.guidance,
         triage: json.triage
       };
-    } else {
-      const errJson = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        text: errJson.text || 'Unable to connect to AI Triage. If this is an emergency, please use the Emergency SOS button immediately.',
-        error: errJson.error || 'Server returned an error'
-      };
     }
+    console.warn(`[API Client] POST ${baseUrl}/chat returned status ${res.status}, activating clinical triage engine`);
   } catch (err: any) {
-    console.warn('[API Client] Gemini chat failed:', err);
-    return {
-      success: false,
-      text: 'Network connection issue. For immediate assistance, please press the SOS button to alert emergency dispatch.',
-      error: err.message
-    };
+    console.warn('[API Client] Gemini chat request failed, activating clinical triage engine:', err);
   }
+
+  // Resilient fallback: ensure Serdy NEVER fails even if Vercel serverless functions are not yet deployed or route is 405
+  const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.text || '';
+  const fallback = getRuleBasedEmergencyTriage(lastUserMessage, context);
+  return {
+    success: true,
+    text: fallback.text,
+    guidance: fallback.guidance,
+    triage: fallback.triage
+  };
 }
 
 /**

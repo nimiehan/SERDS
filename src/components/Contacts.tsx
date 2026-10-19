@@ -42,7 +42,7 @@ const RELATIONSHIP_OPTIONS = [
 export default function Contacts({ onNavigate }: ContactsProps) {
   const { settings, updateEmergencyCircle } = useUserSettings();
   const { darkMode, profile, location } = settings;
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
 
   // Real contacts from user settings
   const contacts: EmergencyCircleContact[] = useMemo(() => {
