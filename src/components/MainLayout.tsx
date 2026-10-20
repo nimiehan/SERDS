@@ -31,8 +31,13 @@ export default function MainLayout({ activeTab, onTabChange, onNavigate, childre
 
   return (
     <div className="flex flex-col h-full bg-[#FAFAFA] dark:bg-neutral-950 font-sans overflow-hidden transition-colors">
-      {/* Top Navigation Bar */}
-      <header className="shrink-0 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-b border-neutral-200/80 dark:border-neutral-800 px-4 pt-3 pb-2.5 z-30 shadow-xs">
+      {/* Top Navigation Bar with Mobile Camera / Status Bar Safe-Area Buffer */}
+      <header 
+        className="shrink-0 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-b border-neutral-200/80 dark:border-neutral-800 px-4 pb-2.5 z-30 shadow-xs transition-colors"
+        style={{
+          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+        }}
+      >
         <div className="max-w-md mx-auto flex items-center gap-2">
           <nav className="flex-1 bg-neutral-100/90 dark:bg-neutral-800/90 p-1 rounded-2xl flex items-center gap-1 border border-neutral-200/60 dark:border-neutral-700/50">
             {NAV_ITEMS.map((item) => {

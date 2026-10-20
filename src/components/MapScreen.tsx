@@ -204,7 +204,24 @@ export default function MapScreen({
   const [isLocating, setIsLocating] = useState(false);
 
   // Real Online Responders Synced from Backend / Responder Mobile UI
-  const [onlineResponders, setOnlineResponders] = useState<LiveOnlineResponder[]>([]);
+  const [onlineResponders, setOnlineResponders] = useState<LiveOnlineResponder[]>(() => {
+    const list: LiveOnlineResponder[] = [];
+    if (initialTargetResponder) {
+      list.push(initialTargetResponder);
+    }
+    try {
+      const localCached = localStorage.getItem('serd_latest_online_responder');
+      if (localCached) {
+        const parsed = JSON.parse(localCached);
+        if (parsed && parsed.id && parsed.status !== 'offline') {
+          if (!list.some(r => r.id === parsed.id)) {
+            list.push(parsed);
+          }
+        }
+      }
+    } catch {}
+    return list;
+  });
 
   // Selected Service Filter: Ambulance, Police, Fire
   const [selectedService, setSelectedService] = useState<EmergencyServiceType>(
@@ -533,24 +550,44 @@ export default function MapScreen({
 
   // Trigger dispatch to real emergency backend
   const triggerDispatch = async (respToUse?: LiveOnlineResponder | null) => {
-    // REQUIREMENT: Cannot dispatch when no responder is online
-    if (onlineResponders.length === 0) {
+    // 1. Resolve effective target responder
+    let target = respToUse 
+      || initialTargetResponder 
+      || selectedResponder 
+      || currentResponder 
+      || nearestMatchingResponder;
+
+    if (!target && onlineResponders.length > 0) {
+      const matching = onlineResponders.filter(r => r.apparatus === selectedService && r.status !== 'offline');
+      if (matching.length > 0) {
+        target = matching[0];
+      } else {
+        const anyActive = onlineResponders.filter(r => r.status !== 'offline');
+        if (anyActive.length > 0) target = anyActive[0];
+      }
+    }
+
+    if (!target) {
       setSelectionNotice('Cannot dispatch: No emergency responders are currently online.');
       return null;
     }
-    if (!citizenLocation) {
-      setSelectionNotice('Locating your position... Please standby.');
-      return null;
+
+    // 2. Resolve citizen coordinates with seamless fallbacks
+    let targetCoords = citizenLocation;
+    if (!targetCoords) {
+      try {
+        const cached = sessionStorage.getItem('serd_real_user_location') || localStorage.getItem('serd_real_user_location');
+        if (cached) targetCoords = JSON.parse(cached);
+      } catch {}
     }
-
-    // REQUIREMENT: Only the selected responder can be dispatched
-    const target = respToUse !== undefined 
-      ? respToUse 
-      : selectedResponder;
-
-    if (!target) {
-      setSelectionNotice('Please select an online responder unit to dispatch.');
-      return null;
+    if (!targetCoords && location?.lastKnownCoords) {
+      targetCoords = [location.lastKnownCoords.lat, location.lastKnownCoords.lng];
+    }
+    if (!targetCoords && target?.coords) {
+      targetCoords = [target.coords[0] + 0.002, target.coords[1] + 0.002];
+    }
+    if (!targetCoords) {
+      targetCoords = [14.6795, 120.5292];
     }
 
     setDispatchedResponder(target);
@@ -565,13 +602,13 @@ export default function MapScreen({
 
     const created = await createEmergencyIncident({
       type: isGeneralSosMode ? 'Emergency SOS Alert' : `Emergency Dispatch - ${target.apparatus.toUpperCase()}`,
-      location: userStreetAddress || `Coordinates [${citizenLocation[0].toFixed(4)}, ${citizenLocation[1].toFixed(4)}]`,
+      location: userStreetAddress || `Coordinates [${targetCoords[0].toFixed(4)}, ${targetCoords[1].toFixed(4)}]`,
       patientName: citizenName,
       priority: 'critical',
       service: target.apparatus,
       targetResponderId: target.id,
       recommendedUnit: target.callSign,
-      coords: citizenLocation,
+      coords: targetCoords,
       details: targetDetails,
       isGeneralSos: isGeneralSosMode
     });
@@ -606,8 +643,8 @@ export default function MapScreen({
       }).catch(err => console.warn('[Direct Msg Notice]:', err));
     }
 
-    if (target?.coords) {
-      calculateRealRoute(target.coords, citizenLocation)
+    if (target?.coords && targetCoords) {
+      calculateRealRoute(target.coords, targetCoords)
         .then(res => {
           setRouteResult(res);
           setRoutePoints(res.coordinates);
@@ -620,15 +657,27 @@ export default function MapScreen({
 
   // Auto-dispatch if requested and not already active
   useEffect(() => {
-    if (autoDispatch && !hasAutoDispatchedRef.current && !isCancelledRef.current && !isDispatched && !activeIncidentId && citizenLocation) {
+    if (autoDispatch && !hasAutoDispatchedRef.current && !isCancelledRef.current && !isDispatched && !activeIncidentId) {
       if (onlineResponders.length === 0) {
+        return;
+      }
+
+      const candidate = initialTargetResponder 
+        || selectedResponder 
+        || nearestMatchingResponder 
+        || currentResponder 
+        || onlineResponders.find(r => r.apparatus === selectedService && r.status !== 'offline')
+        || onlineResponders.find(r => r.status !== 'offline');
+
+      if (!candidate) {
         setSelectionNotice('Cannot dispatch: No emergency responders are currently online.');
         return;
       }
+
       hasAutoDispatchedRef.current = true;
-      triggerDispatch(initialTargetResponder || selectedResponder);
+      triggerDispatch(candidate);
     }
-  }, [autoDispatch, isDispatched, activeIncidentId, citizenLocation, onlineResponders.length, initialTargetResponder, selectedResponder]);
+  }, [autoDispatch, isDispatched, activeIncidentId, onlineResponders, initialTargetResponder, selectedResponder, currentResponder, nearestMatchingResponder, selectedService]);
 
   // Synchronize initialIncidentId if passed dynamically
   useEffect(() => {

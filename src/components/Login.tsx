@@ -40,7 +40,12 @@ export default function Login({ onNavigate }: LoginProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-white px-6 py-12 relative overflow-y-auto font-sans">
+    <div 
+      className="flex flex-col items-center justify-center h-full bg-white px-6 py-12 relative overflow-y-auto font-sans"
+      style={{
+        paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 24px)'
+      }}
+    >
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm mx-auto">
         <h1 className="text-5xl text-[#B41A46] mb-3 tracking-tighter font-bold">SERD.</h1>
         <p className="text-gray-500 text-sm mb-8 font-medium tracking-wide">Smart Emergency Response Dispatch</p>

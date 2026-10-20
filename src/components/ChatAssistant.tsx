@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, Send, ArrowRight, AlertCircle } from 'lucide-react';
-import { sendChatToGemini, ChatTriageMessage, TriageAssessment, fetchOnlineResponders } from '../lib/api';
+import { sendChatToGemini, ChatTriageMessage, TriageAssessment, fetchOnlineResponders, LiveOnlineResponder } from '../lib/api';
 import { useUserSettings } from '../lib/userSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToOnlineResponders } from '../lib/firebase';
@@ -9,7 +9,7 @@ interface ChatAssistantProps {
   initialMessage?: string;
   onBack: () => void;
   onNavigate?: (screen: string) => void;
-  onTriggerSOS?: (serviceType?: string, triageReport?: string) => void;
+  onTriggerSOS?: (serviceType?: string, triageReport?: string, targetUnit?: LiveOnlineResponder) => void;
 }
 
 interface Message {
@@ -54,6 +54,7 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [onlineResponders, setOnlineResponders] = useState<LiveOnlineResponder[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(0);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -61,15 +62,42 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
 
   useEffect(() => {
     let isSubscribed = true;
+
+    const mergeResponders = (baseList: LiveOnlineResponder[]) => {
+      const combinedMap = new Map<string, LiveOnlineResponder>();
+      baseList.forEach(r => {
+        if (r && r.status !== 'offline') combinedMap.set(r.id, r);
+      });
+
+      try {
+        const localCached = localStorage.getItem('serd_latest_online_responder');
+        if (localCached) {
+          const parsed = JSON.parse(localCached);
+          if (parsed && parsed.id && parsed.status !== 'offline') {
+            const age = Date.now() - (parsed.timestamp || 0);
+            if (age < 3600000) {
+              combinedMap.set(parsed.id, { ...(combinedMap.get(parsed.id) || {}), ...parsed });
+            }
+          }
+        }
+      } catch {}
+
+      return Array.from(combinedMap.values());
+    };
+
     const unsub = subscribeToOnlineResponders((fleet) => {
       if (isSubscribed && fleet) {
-        setOnlineCount(fleet.filter(r => r.status !== 'offline').length);
+        const merged = mergeResponders(fleet);
+        setOnlineResponders(merged);
+        setOnlineCount(merged.length);
       }
     });
 
     fetchOnlineResponders().then(list => {
       if (isSubscribed && list) {
-        setOnlineCount(list.filter(r => r.status !== 'offline').length);
+        const merged = mergeResponders(list);
+        setOnlineResponders(merged);
+        setOnlineCount(merged.length);
       }
     });
 
@@ -143,11 +171,33 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
   };
 
   const handleExecuteAction = (actionType?: string, currentMsg?: Message) => {
-    if (onlineCount === 0) {
+    let activeUnits = [...onlineResponders].filter(r => r.status !== 'offline');
+    if (activeUnits.length === 0) {
+      try {
+        const localCached = localStorage.getItem('serd_latest_online_responder');
+        if (localCached) {
+          const parsed = JSON.parse(localCached);
+          if (parsed && parsed.id && parsed.status !== 'offline') {
+            activeUnits = [parsed];
+          }
+        }
+      } catch {}
+    }
+
+    if (activeUnits.length === 0 && onlineCount === 0) {
       setNoticeMessage('Cannot dispatch: No emergency responders are currently online. Please dial local emergency hotlines directly.');
       return;
     }
     setNoticeMessage(null);
+
+    const reqService = (actionType === 'police' || actionType === 'ambulance' || actionType === 'fire')
+      ? actionType
+      : 'ambulance';
+
+    // Find best target unit: preferred matching service, or nearest active unit
+    const targetUnit = activeUnits.find(r => r.apparatus === reqService && r.status !== 'offline')
+      || activeUnits.find(r => r.status !== 'offline')
+      || activeUnits[0];
 
     // Find the latest citizen symptom/emergency message
     const lastUserMsg = [...messages].reverse().find(m => m.sender === 'user')?.text || '';
@@ -164,7 +214,7 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
     }
 
     if (onTriggerSOS) {
-      onTriggerSOS(actionType, triageReport);
+      onTriggerSOS(reqService, triageReport, targetUnit);
     } else if (onNavigate) {
       onNavigate('map');
     } else {
@@ -178,7 +228,10 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
     }`}>
       {/* Notice Alert if no responders online */}
       {noticeMessage && (
-        <div className="absolute top-14 left-4 right-4 z-40 bg-neutral-900 text-white rounded-2xl p-3 shadow-xl border border-neutral-800 flex items-center justify-between text-xs font-semibold animate-[fade-in_0.2s_ease-out]">
+        <div 
+          className="absolute left-4 right-4 z-40 bg-neutral-900 text-white rounded-2xl p-3 shadow-xl border border-neutral-800 flex items-center justify-between text-xs font-semibold animate-[fade-in_0.2s_ease-out]"
+          style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 52px)' }}
+        >
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
             <span>{noticeMessage}</span>
@@ -186,17 +239,22 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
           <button 
             type="button" 
             onClick={() => setNoticeMessage(null)}
-            className="ml-2 text-neutral-400 active:text-white px-1"
+            className="ml-2 text-neutral-400 active:text-white px-1 cursor-pointer"
           >
             ✕
           </button>
         </div>
       )}
 
-      {/* Clean Minimal Header */}
-      <header className={`shrink-0 px-4 py-3 flex items-center justify-between border-b ${
-        darkMode ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200/80'
-      }`}>
+      {/* Clean Minimal Header with Safe-Area Whitespace */}
+      <header 
+        className={`shrink-0 px-4 pb-3 flex items-center justify-between border-b ${
+          darkMode ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200/80'
+        }`}
+        style={{
+          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+        }}
+      >
         <div className="flex items-center gap-2">
           <button 
             type="button"

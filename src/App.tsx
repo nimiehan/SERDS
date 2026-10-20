@@ -206,9 +206,15 @@ export default function App() {
           initialMessage={initialChatMessage} 
           onBack={() => setCurrentScreen('main')} 
           onNavigate={handleNavigate}
-          onTriggerSOS={(serviceType?: string, triageReport?: string) => {
+          onTriggerSOS={(serviceType?: string, triageReport?: string, targetUnit?: LiveOnlineResponder) => {
             if (serviceType === 'police' || serviceType === 'ambulance' || serviceType === 'fire') {
               setMapInitialService(serviceType);
+            }
+            if (targetUnit) {
+              setMapInitialUnit(targetUnit);
+              if (targetUnit.apparatus) {
+                setMapInitialService(targetUnit.apparatus);
+              }
             }
             if (triageReport) {
               setMapInitialDetails(triageReport);

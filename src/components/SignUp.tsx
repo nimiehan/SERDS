@@ -417,8 +417,12 @@ export default function SignUp({ onNavigate }: SignUpProps) {
  return (
  <div className="flex flex-col h-full bg-white font-sans overflow-hidden select-none">
  
- {/* Top Header & Theme Red Step Bar */}
- <header className="pt-5 px-6 pb-3 border-b border-neutral-100 shrink-0">
+ <header 
+ className="px-6 pb-3 border-b border-neutral-100 shrink-0"
+ style={{
+ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+ }}
+ >
  <div className="flex items-center justify-between mb-2.5">
  <button 
  type="button"

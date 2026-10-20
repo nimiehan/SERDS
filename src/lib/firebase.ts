@@ -675,8 +675,11 @@ export function subscribeToOnlineResponders(
       const list: FirestoreResponder[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        const lastSeen = data.lastSeen || 0;
-        const isRecent = (now - lastSeen) <= 900000; // 15 mins
+        const lastSeenTime = typeof data.lastSeen === 'number'
+          ? data.lastSeen
+          : (data.updatedAt?.toMillis ? data.updatedAt.toMillis() : (data.lastSeen?.toMillis ? data.lastSeen.toMillis() : now));
+        // Keep active responders online unless explicitly offline or inactive for over 12 hours
+        const isRecent = (now - lastSeenTime) <= 43200000;
         if (data.status !== 'offline' && isRecent) {
           list.push({
             id: docSnap.id,
@@ -685,10 +688,10 @@ export function subscribeToOnlineResponders(
             status: data.status || 'waiting',
             coords: Array.isArray(data.coords) && data.coords.length === 2 && !isNaN(data.coords[0]) && !isNaN(data.coords[1])
               ? [data.coords[0], data.coords[1]]
-              : [14.5995, 120.9842],
+              : [14.6795, 120.5292],
             accuracy: typeof data.accuracy === 'number' ? data.accuracy : 10,
             phone: data.phone || '',
-            lastSeen: data.lastSeen
+            lastSeen: lastSeenTime
           });
         }
       });
