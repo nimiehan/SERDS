@@ -420,7 +420,7 @@ export default function SignUp({ onNavigate }: SignUpProps) {
  <header 
  className="px-6 pb-3 border-b border-neutral-100 shrink-0"
  style={{
- paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+ paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 36px) + 10px)'
  }}
  >
  <div className="flex items-center justify-between mb-2.5">

@@ -230,7 +230,7 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
       {noticeMessage && (
         <div 
           className="absolute left-4 right-4 z-40 bg-neutral-900 text-white rounded-2xl p-3 shadow-xl border border-neutral-800 flex items-center justify-between text-xs font-semibold animate-[fade-in_0.2s_ease-out]"
-          style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 52px)' }}
+          style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 36px) + 68px)' }}
         >
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -252,7 +252,7 @@ export default function ChatAssistant({ initialMessage, onBack, onNavigate, onTr
           darkMode ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200/80'
         }`}
         style={{
-          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 36px) + 10px)'
         }}
       >
         <div className="flex items-center gap-2">

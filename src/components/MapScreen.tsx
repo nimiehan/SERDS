@@ -531,22 +531,58 @@ export default function MapScreen({
 
   const currentResponder = activeTargetResponder || nearestMatchingResponder;
 
+  // Distance-guarded refs to prevent redundant route computations & rate limit throttling
+  const lastRouteFromRef = useRef<[number, number] | null>(null);
+  const lastRouteToRef = useRef<[number, number] | null>(null);
+
   // Calculate live road route whenever responder or citizen coords update during dispatch
   useEffect(() => {
-    if (!citizenLocation || !isDispatched) return;
-    const activeResp = dispatchedResponder || currentResponder;
-    if (activeResp?.coords) {
-      calculateRealRoute(activeResp.coords, citizenLocation)
-        .then(res => {
-          setRouteResult(res);
-          setRoutePoints(res.coordinates);
-        })
-        .catch(() => {});
-    } else {
-      setRouteResult(null);
-      setRoutePoints([]);
+    if (!citizenLocation || !isDispatched) {
+      if (lastRouteFromRef.current !== null) {
+        lastRouteFromRef.current = null;
+        lastRouteToRef.current = null;
+        setRouteResult(null);
+        setRoutePoints([]);
+      }
+      return;
     }
-  }, [citizenLocation, isDispatched, dispatchedResponder, currentResponder]);
+
+    const activeResp = dispatchedResponder || currentResponder;
+    if (!activeResp?.coords || activeResp.coords[0] === 0) return;
+
+    // Guard: only re-calculate if vehicle or citizen moved > 20 meters
+    const prevFrom = lastRouteFromRef.current;
+    const prevTo = lastRouteToRef.current;
+    if (prevFrom && prevTo && routePoints.length > 2) {
+      const d1 = calculateDistance(prevFrom[0], prevFrom[1], activeResp.coords[0], activeResp.coords[1]);
+      const d2 = calculateDistance(prevTo[0], prevTo[1], citizenLocation[0], citizenLocation[1]);
+      if (d1 < 20 && d2 < 20) {
+        return;
+      }
+    }
+
+    lastRouteFromRef.current = activeResp.coords;
+    lastRouteToRef.current = citizenLocation;
+
+    calculateRealRoute(activeResp.coords, citizenLocation)
+      .then(res => {
+        setRouteResult(res);
+        if (res.coordinates && res.coordinates.length > 1) {
+          setRoutePoints(res.coordinates);
+        }
+      })
+      .catch(() => {});
+  }, [
+    citizenLocation?.[0],
+    citizenLocation?.[1],
+    isDispatched,
+    dispatchedResponder?.id,
+    dispatchedResponder?.coords?.[0],
+    dispatchedResponder?.coords?.[1],
+    currentResponder?.id,
+    currentResponder?.coords?.[0],
+    currentResponder?.coords?.[1]
+  ]);
 
   // Trigger dispatch to real emergency backend
   const triggerDispatch = async (respToUse?: LiveOnlineResponder | null) => {
@@ -644,10 +680,14 @@ export default function MapScreen({
     }
 
     if (target?.coords && targetCoords) {
+      lastRouteFromRef.current = target.coords;
+      lastRouteToRef.current = targetCoords;
       calculateRealRoute(target.coords, targetCoords)
         .then(res => {
           setRouteResult(res);
-          setRoutePoints(res.coordinates);
+          if (res.coordinates && res.coordinates.length > 1) {
+            setRoutePoints(res.coordinates);
+          }
         })
         .catch(() => {});
     }

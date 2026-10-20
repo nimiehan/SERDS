@@ -62,12 +62,6 @@ import {
  declineEmergencyIncident,
  LiveOnlineResponder
 } from'../lib/api';
-import { 
- HospitalFacility, 
- NearbyHospitalResult, 
- getNearbyHospitals, 
- getNearestHospital 
-} from'../lib/hospitals';
 
 interface ResponderViewProps {
  onBack: () => void;
@@ -135,25 +129,6 @@ function createDropoffMarkerIcon(destinationName: string) {
  iconSize: [140, 52],
  iconAnchor: [0, 0]
  });
-}
-
-function createHospitalMarkerIcon(name: string, isNearest = false, isSelected = false) {
-  const bg = isSelected ? '#16a34a' : isNearest ? '#B41A46' : '#2563eb';
-  const shadow = isSelected ? 'rgba(22,163,74,0.45)' : isNearest ? 'rgba(180,26,70,0.45)' : 'rgba(37,99,235,0.4)';
-  return L.divIcon({
-    html: `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; user-select: none; pointer-events: auto; transform: translate(-50%, -100%); cursor: pointer;">
-        <div style="background-color: ${bg}; color: white; padding: 3px 8px; border-radius: 8px; box-shadow: 0 4px 12px ${shadow}; font-size: 10px; font-weight: 800; border: 2px solid white; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
-          <span>${isSelected ? '🎯' : isNearest ? '⭐' : '🏥'}</span>
-          <span>${name}</span>
-        </div>
-        <div style="width: 12px; height: 12px; background-color: ${bg}; border-radius: 9999px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white;"></div>
-      </div>
-    `,
-    className: '',
-    iconSize: [160, 52],
-    iconAnchor: [0, 0]
-  });
 }
 
 // Map Click Listener to pick custom drop-off point anywhere on map
@@ -666,35 +641,6 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  const [isPickingDropoffOnMap, setIsPickingDropoffOnMap] = useState<boolean>(false);
  const [showDropoffModal, setShowDropoffModal] = useState<boolean>(false);
  const [customDropoffName, setCustomDropoffName] = useState<string>('');
- const [selectedHospitalForRouting, setSelectedHospitalForRouting] = useState<NearbyHospitalResult | null>(null);
-
- // Reference coordinates for hospital proximity: prefers incident scene coordinates, then vehicle GPS
- const hospitalRefCoords = useMemo<[number, number]>(() => {
- if (activeIncident?.coords && activeIncident.coords[0] !== 0) {
- return activeIncident.coords;
- }
- if (currentVehicleCoords && currentVehicleCoords[0] !== 0) {
- return currentVehicleCoords;
- }
- return [14.6795, 120.5292];
- }, [activeIncident?.coords, currentVehicleCoords]);
-
- // Detected nearby hospitals sorted by driving proximity
- const nearbyHospitals = useMemo<NearbyHospitalResult[]>(() => {
- return getNearbyHospitals(hospitalRefCoords, 6);
- }, [hospitalRefCoords]);
-
- // Closest hospital detected
- const nearestHospital = useMemo<NearbyHospitalResult | null>(() => {
- return nearbyHospitals.length > 0 ? nearbyHospitals[0] : null;
- }, [nearbyHospitals]);
-
- const handleRouteToHospital = (hospital: HospitalFacility | NearbyHospitalResult) => {
- handleCommenceTransport({
- name: hospital.name,
- coords: hospital.coords
- });
- };
 
  // Load messages whenever activeIncident changes
  useEffect(() => {
@@ -834,11 +780,8 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  setRoutePoints(res.coordinates);
  })
  .catch(() => {});
- } else if (mode ==='transporting' && dropoffDestination?.coords) {
- const originCoords = (currentLoc && currentLoc[0] !== 0) 
- ? currentLoc 
- : (activeIncident?.coords || dropoffDestination.coords);
- calculateRealRoute(originCoords, dropoffDestination.coords)
+ } else if (mode ==='transporting' && activeIncident?.coords && dropoffDestination?.coords) {
+ calculateRealRoute(activeIncident.coords, dropoffDestination.coords)
  .then((res) => {
  setRouteResult(res);
  setRoutePoints(res.coordinates);
@@ -918,28 +861,15 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
 
  const handleCommenceTransport = (destination?: { name: string; coords?: [number, number] }) => {
  if (!activeIncident) return;
- const dest = destination || (nearestHospital ? { name: nearestHospital.name, coords: nearestHospital.coords } : null);
- if (dest) {
- setDropoffDestination(dest);
+ if (destination) {
+ setDropoffDestination(destination);
  }
  setMode('transporting');
  setShowDropoffModal(false);
  setIsPickingDropoffOnMap(false);
- setSelectedHospitalForRouting(null);
  playChime(587.33, 880);
  if (activeIncident.id) {
- updateIncidentStatus(activeIncident.id,'en_route', {
- details: `Transporting patient to ${dest?.name || 'hospital'}`,
- acceptedUnit: callSign
- });
-
- const transitMsg = `Patient transit in progress via unit ${callSign}. En route to ${dest?.name || 'emergency hospital'}.`;
- sendIncidentMessage(activeIncident.id, {
- sender: 'responder',
- senderName: callSign,
- text: transitMsg,
- isUrgent: false
- }).catch(() => {});
+ updateIncidentStatus(activeIncident.id,'en_route');
  }
  };
 
@@ -1086,34 +1016,15 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  />
  )}
 
- {/* Nearby Hospital Markers on Map (Live Trackable & Clickable) */}
- {nearbyHospitals.map((hosp) => {
- const isSelected = dropoffDestination?.coords && dropoffDestination.coords[0] === hosp.coords[0] && dropoffDestination.coords[1] === hosp.coords[1];
- const isNearest = nearestHospital?.id === hosp.id;
- return (
- <Marker 
- key={hosp.id} 
- position={hosp.coords} 
- icon={createHospitalMarkerIcon(hosp.shortName, isNearest, Boolean(isSelected))}
- eventHandlers={{
- click: () => {
- setSelectedHospitalForRouting(hosp);
- playChime(659.25, 880);
- }
- }}
- />
- );
- })}
-
- {/* Responder's Selected Custom Drop-off Destination Marker (if not already a hospital) */}
- {(mode ==='transporting' || isPickingDropoffOnMap) && dropoffDestination?.coords && !nearbyHospitals.some(h => h.coords[0] === dropoffDestination.coords?.[0] && h.coords[1] === dropoffDestination.coords?.[1]) && (
+ {/* Responder's Selected Drop-off Destination Marker */}
+ {(mode ==='transporting' || isPickingDropoffOnMap) && dropoffDestination?.coords && (
  <Marker 
  position={dropoffDestination.coords} 
  icon={createDropoffMarkerIcon(dropoffDestination.name)} 
  />
  )}
 
- {/* Interactive Map Picker when responder clicks 'Pick Location on Map' */}
+ {/* Interactive Map Picker when responder clicks'Pick Location on Map' */}
  <MapLocationPicker
  active={isPickingDropoffOnMap}
  onSelect={(coords) => {
@@ -1129,7 +1040,7 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  {routePoints.length > 0 && (
  <Polyline
  positions={routePoints}
- color={mode === 'transporting' ? '#2563eb' : apparatus ==='police' ?'#1d4ed8' : apparatus ==='fire' ?'#d97706' :'#0f172a'}
+ color={apparatus ==='police' ?'#1d4ed8' : apparatus ==='fire' ?'#d97706' :'#0f172a'}
  weight={6}
  opacity={0.88}
  lineCap="round"
@@ -1138,55 +1049,6 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  )}
  </MapContainer>
  </div>
-
- {/* Floating Hospital Quick Route Card when a hospital is clicked on the map */}
- {selectedHospitalForRouting && (
- <div 
- className="absolute left-3 sm:left-4 right-3 sm:right-4 z-40 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl p-3.5 shadow-2xl border border-blue-400 dark:border-blue-700 flex items-center justify-between gap-3 animate-[fade-in_0.2s_ease-out]"
- style={{ top: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 58px)' }}
- >
- <div className="flex items-center gap-2.5 min-w-0">
- <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm shrink-0 shadow-xs">
- 🏥
- </div>
- <div className="min-w-0">
- <div className="flex items-center gap-1.5 mb-0.5">
- <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
- {selectedHospitalForRouting.id === nearestHospital?.id ? '⭐ Nearest Hospital' : 'Hospital Facility'}
- </span>
- <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[9px] font-bold rounded-full">
- {selectedHospitalForRouting.distanceKm} km · ~{selectedHospitalForRouting.estimatedEtaMinutes}m
- </span>
- </div>
- <h4 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
- {selectedHospitalForRouting.name}
- </h4>
- <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
- {selectedHospitalForRouting.address}
- </p>
- </div>
- </div>
- <div className="flex items-center gap-1.5 shrink-0">
- <button
- onClick={() => {
- handleRouteToHospital(selectedHospitalForRouting);
- setSelectedHospitalForRouting(null);
- }}
- className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
- >
- <Navigation className="w-3.5 h-3.5" />
- <span>START ROUTE</span>
- </button>
- <button
- onClick={() => setSelectedHospitalForRouting(null)}
- className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
- aria-label="Dismiss selection"
- >
- <X className="w-4 h-4" />
- </button>
- </div>
- </div>
- )}
 
  {/* Floating Prompt when selecting drop-off location on map */}
  {isPickingDropoffOnMap && (
@@ -1211,7 +1073,7 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  <div 
  className="absolute left-3 sm:left-4 right-3 sm:right-4 z-20 flex items-center justify-between pointer-events-none"
  style={{
- top: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+ top: 'calc(max(env(safe-area-inset-top, 0px), 36px) + 10px)'
  }}
  >
  
@@ -1571,70 +1433,23 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  </div>
  </div>
 
- {/* Nearest Hospital Auto-Detection Banner */}
- {nearestHospital && (
- <div className="mt-3 p-3 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl flex items-center justify-between gap-3">
- <div className="flex items-center gap-2.5 min-w-0">
- <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center text-base shrink-0 shadow-xs">
- 🏥
- </div>
- <div className="min-w-0">
- <div className="flex items-center gap-1.5 mb-0.5">
- <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
- Nearest Hospital Detected
- </span>
- <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[9px] font-bold rounded-full">
- {nearestHospital.distanceKm} km · ~{nearestHospital.estimatedEtaMinutes}m
- </span>
- </div>
- <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">
- {nearestHospital.name}
- </p>
- <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
- {nearestHospital.address}
- </p>
- </div>
- </div>
- <button
- onClick={() => handleRouteToHospital(nearestHospital)}
- className="px-3.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold shrink-0 shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
- title="Start priority transport to nearest hospital"
- >
- <Navigation className="w-3.5 h-3.5" />
- <span>ROUTE</span>
- </button>
- </div>
- )}
-
- {/* Actions: 1-Tap Auto-Route to Nearest Hospital, Other Destination, Resolve */}
- <div className="mt-3 space-y-2">
- {nearestHospital && (
- <button
- onClick={() => handleRouteToHospital(nearestHospital)}
- className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-2xl font-bold text-xs tracking-wider uppercase shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
- >
- <Navigation className="w-4 h-4 text-white" />
- <span>AUTO-ROUTE TO NEAREST HOSPITAL ({nearestHospital.shortName})</span>
- </button>
- )}
-
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
- <button
- onClick={() => setShowDropoffModal(true)}
- className="py-3 px-3.5 bg-neutral-950 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-2xl font-bold text-xs tracking-wider uppercase shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
- >
- <MapPin className="w-3.5 h-3.5 text-blue-400 dark:text-blue-600" />
- <span>CHOOSE OTHER HOSPITAL / DROP-OFF</span>
- </button>
-
+ {/* Dual Action Options: Resolve on Scene OR Choose Custom Drop-off */}
+ <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
  <button
  onClick={handleCompleteHandover}
- className="py-3 px-3.5 bg-emerald-600 text-white rounded-2xl font-bold text-xs tracking-wider uppercase shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+ className="py-3.5 px-4 bg-emerald-600 text-white rounded-2xl font-bold text-xs tracking-wider uppercase shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
  >
- <Check className="w-3.5 h-3.5" />
+ <Check className="w-4 h-4" />
  <span>RESOLVE & CLEAR ON SCENE</span>
  </button>
- </div>
+
+ <button
+ onClick={() => setShowDropoffModal(true)}
+ className="py-3.5 px-4 bg-neutral-950 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-2xl font-bold text-xs tracking-wider uppercase shadow-md active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+ >
+ <Navigation className="w-4 h-4 text-blue-500" />
+ <span>TRANSPORT & SET DROP-OFF</span>
+ </button>
  </div>
  </div>
  )}
@@ -1697,71 +1512,6 @@ export default function ResponderView({ onBack }: ResponderViewProps) {
  >
  <X className="w-5 h-5" />
  </button>
- </div>
-
- {/* Detected Nearby Hospitals List (Auto-Ranked by Proximity) */}
- <div className="space-y-2">
- <div className="flex items-center justify-between">
- <label className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
- <span>🏥</span>
- <span>Detected Nearby Hospitals</span>
- </label>
- <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
- Auto-Ranked by Proximity
- </span>
- </div>
-
- <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
- {nearbyHospitals.map((hosp, idx) => {
- const isNearest = idx === 0;
- const isCurrentDropoff = dropoffDestination?.name === hosp.name;
- return (
- <div
- key={hosp.id}
- onClick={() => handleRouteToHospital(hosp)}
- className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
- isCurrentDropoff
- ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 shadow-xs'
- : isNearest
- ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50 hover:border-rose-300'
- : 'bg-neutral-50 dark:bg-neutral-800/60 border-neutral-200 dark:border-neutral-700 hover:border-blue-300'
- }`}
- >
- <div className="min-w-0">
- <div className="flex items-center gap-1.5 mb-0.5">
- {isNearest && (
- <span className="px-1.5 py-0.2 bg-[#B41A46] text-white text-[9px] font-bold rounded-full">
- NEAREST
- </span>
- )}
- <span className="text-xs font-bold text-neutral-900 dark:text-white truncate">
- {hosp.name}
- </span>
- </div>
- <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
- {hosp.address}
- </p>
- </div>
- <div className="text-right shrink-0">
- <span className="text-xs font-bold text-blue-600 dark:text-blue-400 block">
- {hosp.distanceKm} km
- </span>
- <span className="text-[10px] text-neutral-400 font-medium block">
- ~{hosp.estimatedEtaMinutes} min ETA
- </span>
- </div>
- </div>
- );
- })}
- </div>
- </div>
-
- <div className="relative flex py-1 items-center">
- <div className="flex-grow border-t border-neutral-200 dark:border-neutral-800"></div>
- <span className="flex-shrink mx-2 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
- OR CUSTOM DROP-OFF
- </span>
- <div className="flex-grow border-t border-neutral-200 dark:border-neutral-800"></div>
  </div>
 
  {/* Custom Location Name Input */}

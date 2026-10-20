@@ -35,7 +35,7 @@ export default function MainLayout({ activeTab, onTabChange, onNavigate, childre
       <header 
         className="shrink-0 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-b border-neutral-200/80 dark:border-neutral-800 px-4 pb-2.5 z-30 shadow-xs transition-colors"
         style={{
-          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 8px)'
+          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 36px) + 10px)'
         }}
       >
         <div className="max-w-md mx-auto flex items-center gap-2">

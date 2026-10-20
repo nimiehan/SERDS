@@ -43,7 +43,7 @@
 
 html, body {
   overscroll-behavior-y: none;
-  --safe-top: max(env(safe-area-inset-top, 0px), 14px);
+  --safe-top: max(env(safe-area-inset-top, 0px), 36px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 

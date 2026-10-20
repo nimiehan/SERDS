@@ -43,7 +43,7 @@ export default function Login({ onNavigate }: LoginProps) {
     <div 
       className="flex flex-col items-center justify-center h-full bg-white px-6 py-12 relative overflow-y-auto font-sans"
       style={{
-        paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 14px) + 24px)'
+        paddingTop: 'calc(max(env(safe-area-inset-top, 0px), 36px) + 24px)'
       }}
     >
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm mx-auto">
